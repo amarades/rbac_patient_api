@@ -1,20 +1,24 @@
 # rbac.py
 
-from fastapi import HTTPException, Depends
-from users import mock_users_db
-from fastapi import Request
+from fastapi import Header, HTTPException
 
-# Same as before – reuse auth dependency
-def get_current_user(request: Request):
-    user_id = request.headers.get("X-User-ID")
-    if not user_id or user_id not in mock_users_db:
-        raise HTTPException(status_code=401, detail="Invalid or missing user ID")
-    return mock_users_db[user_id]
+USERS = {
+    "admin": {"name": "Alice", "role": "admin"},
+    "clinician": {"name": "Bob", "role": "clinician"},
+    "guest": {"name": "Gina", "role": "guest"},
+}
 
-# Role-checking dependency
+def get_current_user(x_role: str = Header(...)):
+    user = USERS.get(x_role.lower())
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid role")
+    return user
+
 def require_role(allowed_roles: list):
-    def role_checker(current_user: dict = Depends(get_current_user)):
-        if current_user["role"] not in allowed_roles:
-            raise HTTPException(status_code=403, detail="You are not authorized to access this resource.")
-        return current_user
-    return role_checker
+    def wrapper(x_role: str = Header(...)):
+        user = get_current_user(x_role)
+        if user["role"] not in allowed_roles:
+            raise HTTPException(status_code=403, detail="Permission denied")
+        return user
+    return wrapper
+
