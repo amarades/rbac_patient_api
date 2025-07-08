@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <head>
+  <title>RBAC Patient Portal</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    .hidden { display: none; }
+    button { margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h1>RBAC Patient Portal</h1>
+
+  <label>Choose User:
+    <select id="userSelect">
+      <option value="guest">Guest Gina</option>
+      <option value="clinician">Clinician Bob</option>
+      <option value="admin">Admin Alice</option>
+    </select>
+  </label>
+
+  <h2>Patients</h2>
+  <ul id="patientList"></ul>
+
+  <div id="addForm" class="hidden">
+    <h3>Add New Patient</h3>
+    <input type="number" id="id" placeholder="ID">
+    <input type="text" id="name" placeholder="Name">
+    <input type="number" id="age" placeholder="Age">
+    <button onclick="addPatient()">Add</button>
+  </div>
+
+  <script>
+    let userRole = "guest";
+
+    document.getElementById("userSelect").addEventListener("change", (e) => {
+      userRole = e.target.value;
+      fetchPatients();
+      updateUI();
+    });
+
+    function updateUI() {
+      const addForm = document.getElementById("addForm");
+      addForm.classList.toggle("hidden", !["admin", "clinician"].includes(userRole));
+    }
+
+    async function fetchPatients() {
+      const res = await fetch("http://127.0.0.1:8000/patients", {
+        headers: { "x-role": userRole }
+      });
+      const patients = await res.json();
+      const list = document.getElementById("patientList");
+      list.innerHTML = "";
+      patients.forEach(p => {
+        const item = document.createElement("li");
+        item.textContent = `${p.name} (Age: ${p.age})`;
+
+        // Show delete button for admin
+        if (userRole === "admin") {
+          const delBtn = document.createElement("button");
+          delBtn.textContent = "Delete";
+          delBtn.onclick = () => deletePatient(p.id);
+          item.appendChild(delBtn);
+        }
+
+        list.appendChild(item);
+      });
+    }
+
+    async function addPatient() {
+      const id = document.getElementById("id").value;
+      const name = document.getElementById("name").value;
+      const age = document.getElementById("age").value;
+
+      const res = await fetch("http://127.0.0.1:8000/patients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-role": userRole
+        },
+        body: JSON.stringify({ id: Number(id), name, age: Number(age) })
+      });
+
+      const result = await res.json();
+      alert(result.message || result.detail);
+      fetchPatients();
+    }
+
+    async function deletePatient(id) {
+      const res = await fetch(`http://127.0.0.1:8000/patients/${id}`, {
+        method: "DELETE",
+        headers: { "x-role": userRole }
+      });
+      const result = await res.json();
+      alert(result.message || result.detail);
+      fetchPatients();
+    }
+
+    // Initial load
+    fetchPatients();
+    updateUI();
+  </script>
+</body>
+</html>
