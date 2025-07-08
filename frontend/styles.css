@@ -1,0 +1,92 @@
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(120deg, #e0f7fa, #f0f4f8);
+  padding: 40px;
+  margin: 0;
+  color: #333;
+}
+
+h1 {
+  text-align: center;
+  color: #2a3f5f;
+  margin-bottom: 30px;
+  font-size: 2em;
+}
+
+label {
+  display: block;
+  margin: 0 auto 30px auto;
+  font-size: 1.1em;
+  font-weight: bold;
+  text-align: center;
+}
+
+select {
+  padding: 10px;
+  font-size: 1em;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  margin-left: 10px;
+}
+
+h2, h3 {
+  margin-top: 30px;
+  color: #2a3f5f;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5px;
+}
+
+ul#patientList {
+  list-style: none;
+  padding: 0;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+ul#patientList li {
+  background: #ffffff;
+  padding: 15px 20px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+button {
+  padding: 8px 14px;
+  background-color: #2a3f5f;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+button:hover {
+  background-color: #3f5680;
+}
+
+#addForm {
+  background: #ffffff;
+  padding: 20px;
+  margin: 40px auto 0;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  max-width: 500px;
+}
+
+#addForm input {
+  display: block;
+  margin-bottom: 15px;
+  padding: 10px;
+  width: 100%;
+  font-size: 1em;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.hidden {
+  display: none;
+}
