@@ -12,24 +12,42 @@ from models import User, Patient, Note
 from auth import authenticate_user, get_current_user, require_role
 from token_1 import create_access_token
 
+# ----------------------------
+# FastAPI App Initialization
+# ----------------------------
 app = FastAPI()
 
+# ----------------------------
+# Serve Frontend Static Files
+# ----------------------------
 app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
+# ----------------------------
+# Root Endpoint: Serve index.html
+# ----------------------------
 @app.get("/", response_class=HTMLResponse)
 def index():
+    """
+    Serves the main frontend HTML page.
+    """
     path = os.path.join("frontend", "index.html")
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
     return HTMLResponse(content="<h1>index.html not found</h1>", status_code=404)
 
+# ----------------------------
+# Create Database Tables
+# ----------------------------
 Base.metadata.create_all(bind=engine)
 
 # ----------------------------
-# DB Dependency
+# Database Dependency
 # ----------------------------
 def get_db():
+    """
+    Provides a database session for each request.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -41,6 +59,9 @@ def get_db():
 # ----------------------------
 @app.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """
+    Authenticates a user and returns a JWT access token.
+    """
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
@@ -52,17 +73,26 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 # ----------------------------
 @app.get("/whoami")
 def whoami(user: User = Depends(get_current_user)):
+    """
+    Returns the current logged-in user's username and role.
+    """
     return {"username": user.username, "role": user.role}
 
 # ----------------------------
-# Add Patient (API with JSON Body)
+# Patient Input Model
 # ----------------------------
 class PatientInput(BaseModel):
     name: str
     age: int
 
+# ----------------------------
+# Add Patient Endpoint
+# ----------------------------
 @app.post("/patients")
 def add_patient(data: PatientInput, db: Session = Depends(get_db)):
+    """
+    Adds a new patient to the database.
+    """
     patient = Patient(name=data.name, age=data.age)
     db.add(patient)
     db.commit()
@@ -70,11 +100,14 @@ def add_patient(data: PatientInput, db: Session = Depends(get_db)):
     return {"message": "Patient added", "patient_id": patient.id}
 
 # ----------------------------
-# Add Note to Patient
+# Note Input Model
 # ----------------------------
 class NoteInput(BaseModel):
     content: str
 
+# ----------------------------
+# Add Note to Patient Endpoint
+# ----------------------------
 @app.post("/patients/{patient_id}/notes")
 def add_note(
     patient_id: int,
@@ -82,6 +115,9 @@ def add_note(
     user=Depends(require_role("clinician")),
     db: Session = Depends(get_db)
 ):
+    """
+    Adds a note to a patient (clinician only).
+    """
     note = Note(
         patient_id=patient_id,
         user_id=user.id,
@@ -93,10 +129,13 @@ def add_note(
     return {"message": "Note added"}
 
 # ----------------------------
-# List Patients + Notes
+# List Patients with Notes Endpoint
 # ----------------------------
 @app.get("/patients")
 def list_patients_with_notes(db: Session = Depends(get_db)):
+    """
+    Returns a list of all patients and their notes.
+    """
     patients = db.query(Patient).all()
     response = []
     for p in patients:
@@ -118,10 +157,13 @@ def list_patients_with_notes(db: Session = Depends(get_db)):
     return response
 
 # ----------------------------
-# Delete Patient (API for JS)
+# Delete Patient Endpoint
 # ----------------------------
 @app.delete("/patients/{patient_id}")
 def delete_patient(patient_id: int, user=Depends(require_role("admin")), db: Session = Depends(get_db)):
+    """
+    Deletes a patient from the database (admin only).
+    """
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
