@@ -23,4 +23,3 @@ SessionLocal = sessionmaker(
 
 # Base class for models
 Base = declarative_base()
-

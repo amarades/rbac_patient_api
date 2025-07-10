@@ -4,142 +4,256 @@
   <meta charset="UTF-8" />
   <title>RBAC Patient Portal</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="/frontend/styles.css" />
+  <style>
+    .hidden { display: none; }
+    .note-box { padding-left: 1rem; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <h1>RBAC Patient Portal</h1>
+  <div class="container mt-4">
+    <h1 class="mb-4">RBAC Patient Portal</h1>
 
-    <div class="mb-4">
-      <label for="userSelect">Select Role:</label>
-      <select id="userSelect" class="form-select">
-        <option value="guest">Guest</option>
-        <option value="clinician">Clinician</option>
-        <option value="admin">Admin</option>
-      </select>
-    </div>
+    <!-- Login Section -->
+    <section class="mb-5">
+      <h4>Login</h4>
+      <input type="text" id="username" class="form-control mb-2" placeholder="Username" autocomplete="username" />
+      <input type="password" id="password" class="form-control mb-2" placeholder="Password" autocomplete="current-password" />
+      <button onclick="login()" class="btn btn-success">Login</button>
+      <div id="currentUser" class="mt-3"></div>
+    </section>
 
-    <h2>Patients</h2>
-    <ul id="patientList" class="list-group"></ul>
+    <!-- Patient List -->
+    <section>
+      <h2>Patients</h2>
+      <ul id="patientList" class="list-group mb-4"></ul>
+    </section>
 
-    <div id="addForm" class="hidden">
-      <h4 class="mb-3">Add New Patient</h4>
-      <input type="text" id="name" placeholder="Name" class="form-control" />
-      <input type="number" id="age" placeholder="Age" class="form-control" />
-      <button onclick="addPatient()" class="btn btn-primary mt-2">Add Patient</button>
-    </div>
+    <!-- Add Patient Form -->
+    <section id="addForm" class="hidden mb-5">
+      <h4>Add Patient</h4>
+      <input type="text" id="name" class="form-control mb-2" placeholder="Patient Name" />
+      <input type="number" id="age" class="form-control mb-2" placeholder="Patient Age" />
+      <button onclick="addPatient()" class="btn btn-primary">Add Patient</button>
+    </section>
   </div>
 
   <script>
-    let userRole = localStorage.getItem("userRole") || "guest";
-    document.getElementById("userSelect").value = userRole;
-    localStorage.setItem("userRole", userRole);
+    let token = localStorage.getItem("token") || null;
+    let userInfo = null;
 
-    document.getElementById("userSelect").addEventListener("change", (e) => {
-      userRole = e.target.value;
-      localStorage.setItem("userRole", userRole);
-      fetchPatients();
-      updateUI();
+    async function login() {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!username || !password) return alert("Please enter both username and password.");
+      if (token) return alert("Already logged in.");
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ username, password })
+        });
+
+        const data = await res.json();
+        if (!res.ok) return alert("Login failed: " + (data.detail || JSON.stringify(data)));
+
+        token = data.access_token;
+        localStorage.setItem("token", token);
+        await fetchUser();
+        await fetchPatients();
+      } catch (err) {
+        alert("An error occurred during login.");
+        console.error(err);
+      }
+    }
+    async function fetchUser() {
+  try {
+    const res = await fetch("/whoami", {
+      headers: { Authorization: `Bearer ${token}` }
     });
 
+    if (res.ok) {
+      userInfo = await res.json();
+      document.getElementById("currentUser").innerHTML = `
+        <div class="alert alert-success d-flex justify-content-between align-items-center">
+          <span>✅ Logged in as <strong>${userInfo.username}</strong> (<em>${userInfo.role}</em>)</span>
+          <button onclick="logout()" class="btn btn-sm btn-danger">Logout</button>
+        </div>`;
+      updateUI();
+    } else {
+      const errorData = await res.json();
+      throw new Error(errorData.detail || "Invalid user response");
+    }
+  } catch (err) {
+    console.error("Error in fetchUser:", err);
+    document.getElementById("currentUser").innerHTML = `
+      <div class="alert alert-danger">Error fetching user info: ${err && err.message ? err.message : "Unknown error"}</div>`;
+    // Only logout if error is authentication related
+    if (err.message && (err.message.includes("401") || err.message.includes("403") || err.message.toLowerCase().includes("unauthorized"))) {
+      logout();
+    }
+  }
+}
+
+   
+
+
+    function logout() {
+      token = null;
+      userInfo = null;
+      localStorage.removeItem("token");
+      document.getElementById("currentUser").innerHTML = "";
+      document.getElementById("patientList").innerHTML = "";
+      updateUI();
+    }
+
     function updateUI() {
-      document.getElementById("addForm").classList.toggle("hidden", !["admin", "clinician"].includes(userRole));
+      const canAddPatient = userInfo && ["admin", "clinician"].includes(userInfo.role);
+      document.getElementById("addForm").classList.toggle("hidden", !canAddPatient);
     }
 
     async function fetchPatients() {
-      const res = await fetch("http://127.0.0.1:8000/patients", {
-        headers: { "X-Username": userRole }
-      });
-      const patients = await res.json();
-      const list = document.getElementById("patientList");
-      list.innerHTML = "";
+      try {
+        const res = await fetch("/patients", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-      for (const p of patients) {
-        const item = document.createElement("li");
-        item.className = "list-group-item";
+        const patients = await res.json();
+        const list = document.getElementById("patientList");
+        list.innerHTML = "";
 
-        item.innerHTML = `
-          <strong>${p.name}</strong> (Age: ${p.age})
-          ${userRole === "admin" ? `<button class="btn btn-sm btn-danger" onclick="deletePatient(${p.id})">Delete</button>` : ""}
-        `;
+        patients.forEach(p => {
+          const item = document.createElement("li");
+          item.className = "list-group-item";
+          item.innerHTML = `<strong>${p.name}</strong> (Age: ${p.age})`;
 
-        if (userRole === "clinician") {
-          const noteBox = document.createElement("div");
-          noteBox.className = "note-box";
-          noteBox.innerHTML = `
-            <input class="form-control form-control-sm mb-1" type="text" placeholder="Add note..." id="note-${p.id}">
-            <button class="btn btn-sm btn-secondary" onclick="addNote(${p.id})">Add Note</button>
-          `;
-          item.appendChild(noteBox);
-        }
+          // Admin can delete
+          if (userInfo?.role === "admin") {
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "btn btn-sm btn-danger float-end";
+            deleteBtn.textContent = "Delete";
+            deleteBtn.onclick = () => deletePatient(p.id);
+            item.appendChild(deleteBtn);
+          }
 
-        if (p.notes && p.notes.length > 0) {
-          const noteList = document.createElement("ul");
-          noteList.className = "note-box";
-          p.notes.forEach(n => {
-            const noteItem = document.createElement("li");
-            noteItem.innerHTML = `
-              📝 <strong>${n.content}</strong><br/>
-              <small>— ${n.author} at ${n.created_at}</small>
-            `;
-            noteList.appendChild(noteItem);
-          });
-          item.appendChild(noteList);
-        }
+          // Clinician can add notes
+          if (userInfo?.role === "clinician") {
+            const noteBox = document.createElement("div");
+            noteBox.className = "note-box mt-2";
+            noteBox.innerHTML = `
+              <input class="form-control form-control-sm mb-1" type="text" placeholder="Add note..." id="note-${p.id}" />
+              <button class="btn btn-sm btn-secondary" onclick="addNote(${p.id})">Add Note</button>`;
+            item.appendChild(noteBox);
+          }
 
-        list.appendChild(item);
+          // Display notes
+          if (Array.isArray(p.notes) && p.notes.length > 0) {
+            const noteList = document.createElement("ul");
+            noteList.className = "note-box mt-2";
+            p.notes.forEach(n => {
+              const noteItem = document.createElement("li");
+              noteItem.innerHTML = `📝 <strong>${n.content}</strong><br/><small>— ${n.author} at ${n.created_at}</small>`;
+              noteList.appendChild(noteItem);
+            });
+            item.appendChild(noteList);
+          }
+
+          list.appendChild(item);
+        });
+      } catch (err) {
+        alert("Error fetching patients.");
+        console.error(err);
       }
     }
 
     async function addPatient() {
-      const name = document.getElementById("name").value;
-      const age = document.getElementById("age").value;
+      const name = document.getElementById("name").value.trim();
+      const age = parseInt(document.getElementById("age").value);
 
-      const res = await fetch("http://127.0.0.1:8000/patients", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Username": userRole
-        },
-        body: JSON.stringify({ name, age: Number(age) })
-      });
+      if (!name || isNaN(age)) return alert("Please enter valid name and age.");
 
-      const result = await res.json();
-      alert(result.message || result.detail);
-      fetchPatients();
+      try {
+        const res = await fetch("/patients", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, age })
+        });
+
+        const result = await res.json();
+        alert(result.message || result.detail || "Patient added.");
+        await fetchPatients();
+      } catch (err) {
+        alert("Failed to add patient.");
+        console.error(err);
+      }
     }
 
     async function deletePatient(id) {
-      const res = await fetch(`http://127.0.0.1:8000/patients/${id}`, {
-        method: "DELETE",
-        headers: { "X-Username": userRole }
-      });
-      const result = await res.json();
-      alert(result.message || result.detail);
-      fetchPatients();
+      if (!confirm("Are you sure you want to delete this patient?")) return;
+
+      try {
+        const res = await fetch(`/patients/${id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const result = await res.json();
+        alert(result.message || result.detail || "Deleted successfully.");
+        await fetchPatients();
+      } catch (err) {
+        alert("Error deleting patient.");
+        console.error(err);
+      }
     }
 
     async function addNote(patientId) {
-      const noteInput = document.getElementById(`note-${patientId}`);
-      const content = noteInput.value;
-      if (!content) return alert("Note content required!");
+      const input = document.getElementById(`note-${patientId}`);
+      const content = input?.value.trim();
+      if (!content) return alert("Note content required.");
 
-      const res = await fetch(`http://127.0.0.1:8000/patients/${patientId}/notes`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Username": userRole
-        },
-        body: JSON.stringify({ content })
-      });
+      try {
+        const res = await fetch(`/patients/${patientId}/notes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ content })
+        });
 
-      const result = await res.json();
-      alert(result.message || result.detail);
-      fetchPatients();
+        const result = await res.json();
+        let msg = "Note added.";
+        if (typeof result.message === "string") {
+          msg = result.message;
+        } else if (typeof result.detail === "string") {
+          msg = result.detail;
+        } else if (Array.isArray(result) && result.length > 0 && result[0].msg) {
+          // Handles validation errors from FastAPI
+          msg = result.map(e => e.msg).join("; ");
+        } else if (result.message) {
+          msg = JSON.stringify(result.message);
+        } else if (result.detail) {
+          msg = JSON.stringify(result.detail);
+        }
+        alert(msg);
+        input.value = ""; // Clear input after adding
+        await fetchPatients();
+      } catch (err) {
+        alert("Failed to add note.");
+        console.error(err);
+      }
     }
 
-    fetchPatients();
-    updateUI();
+    // Auto-login if token exists
+    if (token) {
+      fetchUser();
+      fetchPatients();
+    }
   </script>
 </body>
 </html>

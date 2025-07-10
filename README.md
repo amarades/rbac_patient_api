@@ -1,117 +1,83 @@
-# 🛡️ RBAC API for Patient Data Access
+# RBAC API with FastAPI
 
-A simple FastAPI backend + HTML/JS frontend implementing **Role-Based Access Control (RBAC)** to securely view, add, and delete patient records.
-
----
-
-## 🚀 Features
-
-### ✅ Backend (FastAPI)
-- Role-checking middleware (`admin`, `clinician`, `guest`)
-- Simulated authentication using custom headers (`X-User-ID`)
-- Protected routes:
-  - Only **admin** can delete patients
-  - **Clinicians** can add notes or patients
-  - **Guests** can only view
-- Modular and scalable architecture
-- Swagger docs available at [`/docs`](http://127.0.0.1:8000/docs)
-
-### 🎨 Frontend (HTML + JS)
-- Patient list view
-- Add/Delete buttons (role-based)
-- Dynamic dropdown to simulate user role switch
-- Responsive UI with styling
-- CORS enabled for smooth backend communication
+This project is a **Role-Based Access Control (RBAC) API** built with [FastAPI](https://fastapi.tiangolo.com/), SQLAlchemy, and JWT authentication. It provides endpoints for user authentication, patient management, and note-taking, with role-based permissions for clinicians and admins. A simple frontend is included for demonstration.
 
 ---
 
-## 📦 Requirements
+## Features
 
-- Python 3.8+
-- `fastapi`
-- `uvicorn`
-- `http-server` (for serving frontend locally, optional)
-
-Install dependencies:
-```bash
-pip install fastapi uvicorn
-```
+- **JWT Authentication**: Secure login and protected endpoints.
+- **Role-Based Access**: Only users with the correct role can perform certain actions (e.g., only clinicians can add notes, only admins can delete patients).
+- **Patient Management**: Add, list, and delete patients.
+- **Notes System**: Clinicians can add notes to patients; all notes are stored in the database.
+- **Frontend**: Basic HTML/JS frontend for login, viewing, and managing patients and notes.
 
 ---
 
-## ⚙️ Installation & Running
-
-### 1️⃣ Clone the repo
-```bash
-git clone https://github.com/YOUR_USERNAME/rbac-api.git
-cd rbac-api
-```
-
-### 2️⃣ Run the backend (FastAPI)
-```bash
-uvicorn main:app --reload
-```
-
-- FastAPI will run at: `http://127.0.0.1:8000`
-- API docs: `http://127.0.0.1:8000/docs`
-
-### 3️⃣ Run the frontend (optional)
-From inside the `frontend` directory:
-```bash
-cd frontend
-npx http-server .
-```
-
-- Open: `http://127.0.0.1:5500` (or the port shown in terminal)
-
----
-
-## 🔑 Simulated Users
-
-Use the dropdown to simulate different roles:
-- **Admin Alice** – Can add/delete/view patients
-- **Clinician Bob** – Can add/view patients
-- **Guest Gina** – Can only view
-
-Header-based role simulation:
-```http
-X-User-ID: admin  → Admin Alice
-X-User-ID: clinician → Clinician Bob
-X-User-ID: guest  → Guest Gina
-```
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 rbac-api/
 │
-├── main.py             # FastAPI app
-├── rbac.py             # Role-checking logic
-├── users.py            # Mock user database
-├── requirements.txt
-│
-├── frontend/           # HTML + JS UI
-│   ├── index.html
-│   └── styles.css
+├── auth.py           # Authentication and role dependencies
+├── db.py             # Database connection and session setup
+├── main.py           # FastAPI app and API endpoints
+├── models.py         # SQLAlchemy models (User, Patient, Note)
+├── token_1.py        # JWT creation and decoding
+├── create_users.py   # Script to create initial users
+├── frontend/
+│   └── index.html    # Simple frontend interface
+├── .gitignore        # Git ignore file
+└── ...
 ```
 
 ---
 
-## 💡 Example Endpoints
+## How to Run
 
-| Endpoint | Method | Role |
-|----------|--------|------|
-| `/whoami` | GET | All |
-| `/patients` | GET | All |
-| `/patients` | POST | Clinician, Admin |
-| `/patients/{id}` | DELETE | Admin |
+1. **Install dependencies**  
+   ```
+   pip install fastapi uvicorn sqlalchemy passlib[bcrypt] python-jose
+   ```
+
+2. **Set up the database**  
+   - The database is configured in `db.py`. By default, it uses SQLite or PostgreSQL (edit as needed).
+
+3. **Create initial users**  
+   - Run `create_users.py` to add admin/clinician users.
+
+4. **Start the server**  
+   ```
+   uvicorn main:app --reload
+   ```
+
+5. **Access the frontend**  
+   - Open [http://localhost:8000/frontend/index.html](http://localhost:8000/frontend/index.html) in your browser.
 
 ---
 
-## 📝 Notes
+## API Endpoints
 
-- This project uses **mock data only**; no real DB.
-- Can be extended with real auth (JWT) and DB (Postgres, etc.)
-- You can test using Postman or Swagger.
+- `POST /login` — User login, returns JWT token.
+- `GET /whoami` — Returns current user info.
+- `GET /patients` — List all patients and their notes.
+- `POST /patients` — Add a new patient.
+- `POST /patients/{patient_id}/notes` — Add a note to a patient (clinician only).
+- `DELETE /patients/{patient_id}` — Delete a patient (admin only).
+
+---
+
+## Security Notes
+
+- **Do not commit secrets** (e.g., JWT secret, DB passwords) to GitHub.
+- Use a `.env` file or environment variables for sensitive settings.
+
+---
+
+## License
+
+MIT License
+
+---
+
+**This project is a starting point for RBAC-based healthcare or similar applications. Customize and expand it according to your requirements.**

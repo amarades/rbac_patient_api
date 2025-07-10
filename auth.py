@@ -5,8 +5,19 @@ from fastapi.security import OAuth2PasswordBearer
 from token_1 import decode_access_token
 from db import SessionLocal
 from models import User
+from passlib.context import CryptContext
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+def verify_password(plain, hashed):
+    return pwd_context.verify(plain, hashed)
+
+def authenticate_user(db: Session, username: str, password: str):
+    user = db.query(User).filter(User.username == username).first()
+    if not user or not verify_password(password, user.hashed_password):
+        return None
+    return user
 
 def get_db():
     db = SessionLocal()
@@ -19,15 +30,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     payload = decode_access_token(token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
     username = payload.get("sub")
     if not username:
         raise HTTPException(status_code=401, detail="Invalid token payload")
-
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-
     return user
 
 def require_role(required_role: str):
@@ -36,3 +44,4 @@ def require_role(required_role: str):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
     return role_dependency
+
