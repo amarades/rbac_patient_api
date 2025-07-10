@@ -1,72 +1,132 @@
-from fastapi import FastAPI, Depends, Header, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
+from fastapi import FastAPI, Depends, HTTPException, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+import datetime
+
+from db import Base, engine, SessionLocal
+from models import User, Patient, Note
 from rbac import get_current_user, require_role
+from auth import authenticate_user
+from token_1 import create_access_token
+from auth import get_current_user, require_role
 
+
+# ----------------------------
+# Create and configure app
+# ----------------------------
 app = FastAPI()
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
 
-# Enable CORS for frontend access
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Later restrict to ["http://localhost:5500"]
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ----------------------------
+# Initialize DB tables
+# ----------------------------
+Base.metadata.create_all(bind=engine)
 
-# Simple in-memory patient store
-class Patient(BaseModel):
-    id: int
-    name: str
-    age: int
+# ----------------------------
+# DB Dependency
+# ----------------------------
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-patients = [
-    Patient(id=1, name="Alice", age=30),
-    Patient(id=2, name="Bob", age=40)
-]
+# ----------------------------
+# Home Page
+# ----------------------------
+@app.get("/", response_class=HTMLResponse)
+def index():
+    with open("frontend/index.html") as f:
+        return HTMLResponse(content=f.read())
 
-# Check current user identity
+# ----------------------------
+# Auth/Login Endpoint
+# ----------------------------
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token(data={"sub": user.username})
+    return {"access_token": token, "token_type": "bearer"}
+
+# ----------------------------
+# Who Am I Endpoint
+# ----------------------------
+# NEW (token-based)
 @app.get("/whoami")
-def who_am_i(current_user: dict = Depends(get_current_user)):
-    return {"user": current_user}
+def who_am_i(user=Depends(get_current_user)):
+    return {"username": user.username, "role": user.role}
 
-# ✅ View all patients (all roles allowed)
-@app.get("/patients", response_model=List[Patient])
-def list_patients(current_user: dict = Depends(get_current_user)):
-    return patients
-
-# ✅ Add new patient (admin, clinician)
+# ----------------------------
+# Add Patient (API)
+# ----------------------------
 @app.post("/patients")
-def add_patient(patient: Patient, current_user: dict = Depends(require_role(["admin", "clinician"]))):
-    if any(p.id == patient.id for p in patients):
-        raise HTTPException(status_code=400, detail="Patient ID already exists.")
-    patients.append(patient)
-    return {"message": f"Patient {patient.name} added."}
+def add_patient(name: str, age: int, db: Session = Depends(get_db)):
+    patient = Patient(name=name, age=age)
+    db.add(patient)
+    db.commit()
+    db.refresh(patient)
+    return {"message": "Patient added", "patient_id": patient.id}
 
-# ✅ Delete patient (admin only)
-@app.delete("/patients/{patient_id}")
-def delete_patient(patient_id: int, current_user: dict = Depends(require_role(["admin"]))):
-    for patient in patients:
-        if patient.id == patient_id:
-            patients.remove(patient)
-            return {"message": f"Patient {patient_id} deleted."}
-    raise HTTPException(status_code=404, detail="Patient not found.")
+# ----------------------------
+# Add Patient (via HTML Form)
+# ----------------------------
+@app.post("/patients/add")
+def add_patient_ui(name: str = Form(...), age: int = Form(...), db: Session = Depends(get_db)):
+    patient = Patient(name=name, age=age)
+    db.add(patient)
+    db.commit()
+    return RedirectResponse(url="/", status_code=303)
 
-# ✅ Get single patient detail
-@app.get("/patients/{patient_id}")
-def get_patient(patient_id: int, current_user: dict = Depends(get_current_user)):
-    for patient in patients:
-        if patient.id == patient_id:
-            return patient
-    raise HTTPException(status_code=404, detail="Patient not found.")
+# ----------------------------
+# Add Note to Patient
+# ----------------------------
 
-# ✅ Clinician adds note (mocked)
+# ----------------------------
+# List Patients + Notes
+# ----------------------------
+@app.get("/patients")
+def list_patients_with_notes(db: Session = Depends(get_db)):
+    patients = db.query(Patient).all()
+    response = []
+    for p in patients:
+        notes = db.query(Note).filter(Note.patient_id == p.id).all()
+        note_data = [
+            {
+                "content": n.content,
+                "created_at": n.created_at.strftime("%Y-%m-%d %H:%M"),
+                "author": db.query(User).filter(User.id == n.user_id).first().username
+            }
+            for n in notes
+        ]
+        response.append({
+            "id": p.id,
+            "name": p.name,
+            "age": p.age,
+            "notes": note_data
+        })
+    return response
+
+# ----------------------------
+# Delete Patient via UI
+# ----------------------------
 @app.post("/patients/{patient_id}/notes")
-def add_note(patient_id: int, current_user: dict = Depends(require_role(["clinician"]))):
-    return {"message": f"Note added to patient {patient_id} by {current_user['name']}"}
+def add_note(patient_id: int, content: str, user=Depends(require_role("clinician")), db: Session = Depends(get_db)):
+    note = Note(patient_id=patient_id, user_id=user.id, content=content, created_at=datetime.datetime.utcnow())
+    db.add(note)
+    db.commit()
+    return {"message": "Note added"}
 
-# Only admin can delete patient
-@app.delete("/patients/{patient_id}")
-def delete_patient(patient_id: int, current_user: dict = Depends(require_role(["admin"]))):
-    return {"message": f"Patient {patient_id} deleted by {current_user['name']}"}
+@app.post("/patients/delete")
+def delete_patient_ui(patient_id: int = Form(...), user=Depends(require_role("admin")), db: Session = Depends(get_db)):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    db.delete(patient)
+    db.commit()
+    return RedirectResponse(url="/", status_code=303)
+

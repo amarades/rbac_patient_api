@@ -2,83 +2,96 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <head>
   <title>RBAC Patient Portal</title>
-  <link rel="stylesheet" href="styles.css">
-  <!-- Bootstrap CSS -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-</head>
-
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    .hidden { display: none; }
-    button { margin-left: 10px; }
-  </style>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>RBAC Patient Portal</h1>
+  <div class="container">
+    <h1>RBAC Patient Portal</h1>
 
-  <label>Choose User:
-    <select id="userSelect">
-      <option value="guest">Guest Gina</option>
-      <option value="clinician">Clinician Bob</option>
-      <option value="admin">Admin Alice</option>
-    </select>
-  </label>
+    <div class="mb-4">
+      <label for="userSelect">Select Role:</label>
+      <select id="userSelect" class="form-select">
+        <option value="guest">Guest</option>
+        <option value="clinician">Clinician</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
 
-  <h2>Patients</h2>
-  <ul id="patientList"></ul>
+    <h2>Patients</h2>
+    <ul id="patientList" class="list-group"></ul>
 
-  <div id="addForm" class="hidden">
-    <h3>Add New Patient</h3>
-    <input type="number" id="id" placeholder="ID">
-    <input type="text" id="name" placeholder="Name">
-    <input type="number" id="age" placeholder="Age">
-    <button onclick="addPatient()">Add</button>
+    <div id="addForm" class="hidden">
+      <h4 class="mb-3">Add New Patient</h4>
+      <input type="text" id="name" placeholder="Name" class="form-control" />
+      <input type="number" id="age" placeholder="Age" class="form-control" />
+      <button onclick="addPatient()" class="btn btn-primary mt-2">Add Patient</button>
+    </div>
   </div>
 
   <script>
     let userRole = localStorage.getItem("userRole") || "guest";
-document.getElementById("userSelect").value = userRole;
+    document.getElementById("userSelect").value = userRole;
     localStorage.setItem("userRole", userRole);
 
     document.getElementById("userSelect").addEventListener("change", (e) => {
       userRole = e.target.value;
+      localStorage.setItem("userRole", userRole);
       fetchPatients();
       updateUI();
     });
 
     function updateUI() {
-      const addForm = document.getElementById("addForm");
-      addForm.classList.toggle("hidden", !["admin", "clinician"].includes(userRole));
+      document.getElementById("addForm").classList.toggle("hidden", !["admin", "clinician"].includes(userRole));
     }
 
     async function fetchPatients() {
       const res = await fetch("http://127.0.0.1:8000/patients", {
-        headers: { "x-role": userRole }
+        headers: { "X-Username": userRole }
       });
       const patients = await res.json();
       const list = document.getElementById("patientList");
       list.innerHTML = "";
-      patients.forEach(p => {
-        const item = document.createElement("li");
-        item.textContent = `${p.name} (Age: ${p.age})`;
 
-        // Show delete button for admin
-        if (userRole === "admin") {
-          const delBtn = document.createElement("button");
-          delBtn.textContent = "Delete";
-          delBtn.onclick = () => deletePatient(p.id);
-          item.appendChild(delBtn);
+      for (const p of patients) {
+        const item = document.createElement("li");
+        item.className = "list-group-item";
+
+        item.innerHTML = `
+          <strong>${p.name}</strong> (Age: ${p.age})
+          ${userRole === "admin" ? `<button class="btn btn-sm btn-danger" onclick="deletePatient(${p.id})">Delete</button>` : ""}
+        `;
+
+        if (userRole === "clinician") {
+          const noteBox = document.createElement("div");
+          noteBox.className = "note-box";
+          noteBox.innerHTML = `
+            <input class="form-control form-control-sm mb-1" type="text" placeholder="Add note..." id="note-${p.id}">
+            <button class="btn btn-sm btn-secondary" onclick="addNote(${p.id})">Add Note</button>
+          `;
+          item.appendChild(noteBox);
+        }
+
+        if (p.notes && p.notes.length > 0) {
+          const noteList = document.createElement("ul");
+          noteList.className = "note-box";
+          p.notes.forEach(n => {
+            const noteItem = document.createElement("li");
+            noteItem.innerHTML = `
+              📝 <strong>${n.content}</strong><br/>
+              <small>— ${n.author} at ${n.created_at}</small>
+            `;
+            noteList.appendChild(noteItem);
+          });
+          item.appendChild(noteList);
         }
 
         list.appendChild(item);
-      });
+      }
     }
 
     async function addPatient() {
-      const id = document.getElementById("id").value;
       const name = document.getElementById("name").value;
       const age = document.getElementById("age").value;
 
@@ -86,9 +99,9 @@ document.getElementById("userSelect").value = userRole;
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-role": userRole
+          "X-Username": userRole
         },
-        body: JSON.stringify({ id: Number(id), name, age: Number(age) })
+        body: JSON.stringify({ name, age: Number(age) })
       });
 
       const result = await res.json();
@@ -99,14 +112,32 @@ document.getElementById("userSelect").value = userRole;
     async function deletePatient(id) {
       const res = await fetch(`http://127.0.0.1:8000/patients/${id}`, {
         method: "DELETE",
-        headers: { "x-role": userRole }
+        headers: { "X-Username": userRole }
       });
       const result = await res.json();
       alert(result.message || result.detail);
       fetchPatients();
     }
 
-    // Initial load
+    async function addNote(patientId) {
+      const noteInput = document.getElementById(`note-${patientId}`);
+      const content = noteInput.value;
+      if (!content) return alert("Note content required!");
+
+      const res = await fetch(`http://127.0.0.1:8000/patients/${patientId}/notes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Username": userRole
+        },
+        body: JSON.stringify({ content })
+      });
+
+      const result = await res.json();
+      alert(result.message || result.detail);
+      fetchPatients();
+    }
+
     fetchPatients();
     updateUI();
   </script>
