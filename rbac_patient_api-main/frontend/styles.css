@@ -1,0 +1,116 @@
+/* ----------------------------
+   Base Styles
+   ---------------------------- */
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(to right, #e0f7fa, #f0f4f8);
+  padding: 40px;
+  margin: 0;
+  color: #333;
+}
+
+/* ----------------------------
+   Container Styles
+   ---------------------------- */
+.container {
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  max-width: 800px;
+  margin: auto;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+/* ----------------------------
+   Headings
+   ---------------------------- */
+h1 {
+  text-align: center;
+  color: #2a3f5f;
+  margin-bottom: 30px;
+  font-size: 2rem;
+}
+
+h2 {
+  color: #2a3f5f;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5px;
+  margin-top: 40px;
+}
+
+/* ----------------------------
+   Form Elements
+   ---------------------------- */
+label {
+  font-weight: bold;
+}
+
+select {
+  width: 200px;
+}
+
+#addForm {
+  background: #f8f9fa;
+  padding: 20px;
+  margin-top: 40px;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #ddd;
+}
+
+#addForm input {
+  margin-bottom: 15px;
+}
+
+button {
+  font-weight: 500;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ----------------------------
+   Patient List Styles
+   ---------------------------- */
+#patientList {
+  list-style: none;
+  padding: 0;
+}
+
+#patientList li {
+  background: #fdfdfd;
+  padding: 15px 20px;
+  margin-bottom: 15px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+/* ----------------------------
+   Note Box Styles
+   ---------------------------- */
+.note-box {
+  margin-top: 15px;
+  padding-left: 10px;
+  font-size: 0.95rem;
+}
+
+.note-box ul {
+  padding-left: 20px;
+  margin-top: 10px;
+}
+
+.note-box li {
+  margin-bottom: 8px;
+}
+
+/* ----------------------------
+   Button Styles
+   ---------------------------- */
+.btn-danger {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+}
